@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter devices:*)",
+      "Bash(flutter --version:*)",
+      "Bash(/mnt/c/src/flutter_windows_3.38.7-stable/flutter/bin/flutter devices:*)",
+      "Bash(flutter build:*)",
+      "Bash(flutter run:*)",
+      "Bash(flutter:*)",
+      "Bash(gradlew:*)",
+      "Bash(./gradlew.bat:*)",
+      "Bash(export:*)",
+      "Bash(adb:*)",
+      "Bash(\"C:\\\\Users\\\\DEV\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" devices)",
+      "Bash(gradlew.bat assembleDebug:*)",
+      "Bash(cmd:*)",
+      "Bash(\"C:\\\\Users\\\\DEV\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" logcat:*)",
+      "Bash(\"C:\\\\Users\\\\DEV\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" kill-server)",
+      "Bash(\"C:\\\\Users\\\\DEV\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\":*)"
+    ]
+  }
+}
