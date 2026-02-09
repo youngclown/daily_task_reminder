@@ -4,6 +4,7 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 import '../providers/task_provider.dart';
 import '../models/task.dart';
+import '../models/birthday.dart';
 import '../services/lunar_service.dart';
 
 class CalendarScreen extends StatefulWidget {
@@ -56,6 +57,43 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 // Return combined list for marker display
                 return [...tasks, ...birthdays];
               },
+              calendarBuilders: CalendarBuilders(
+                markerBuilder: (context, day, events) {
+                  if (events.isEmpty) return null;
+
+                  final hasTasks = events.any((e) => e is Task);
+                  final hasBirthdays = events.any((e) => e is Birthday);
+
+                  return Positioned(
+                    bottom: 1,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (hasTasks)
+                          Container(
+                            width: 6,
+                            height: 6,
+                            margin: const EdgeInsets.symmetric(horizontal: 1),
+                            decoration: const BoxDecoration(
+                              color: Colors.blue,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        if (hasBirthdays)
+                          Container(
+                            width: 6,
+                            height: 6,
+                            margin: const EdgeInsets.symmetric(horizontal: 1),
+                            decoration: const BoxDecoration(
+                              color: Colors.pink,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                      ],
+                    ),
+                  );
+                },
+              ),
               calendarStyle: const CalendarStyle(
                 markersMaxCount: 3,
                 markerDecoration: BoxDecoration(
@@ -134,22 +172,58 @@ class _CalendarScreenState extends State<CalendarScreen> {
           const SizedBox(height: 8),
           ...tasks.map((task) => Card(
                 child: ListTile(
-                  leading: Icon(
-                    task.isCompleted
-                        ? Icons.check_circle
-                        : Icons.radio_button_unchecked,
-                    color: task.isCompleted ? Colors.green : null,
+                  onTap: () => _showTaskDetailDialog(context, task),
+                  leading: Checkbox(
+                    value: task.isCompleted,
+                    onChanged: (value) {
+                      context.read<TaskProvider>().toggleTaskCompletion(task);
+                    },
                   ),
-                  title: Text(task.title),
-                  subtitle: task.description != null
-                      ? Text(task.description!)
-                      : null,
-                  trailing: task.frequency == TaskFrequency.monthly
-                      ? Icon(
+                  title: Text(
+                    task.title,
+                    style: TextStyle(
+                      color: task.isCompleted ? Colors.grey : Colors.blue[700],
+                      decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+                    ),
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (task.description != null)
+                        Text(task.description!),
+                      if (task.notes != null)
+                        Text(
+                          task.notes!,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.blue[600],
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      Text(
+                        '${task.scheduledHour.toString().padLeft(2, '0')}:${task.scheduledMinute.toString().padLeft(2, '0')}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (task.frequency == TaskFrequency.monthly)
+                        Icon(
                           Icons.calendar_month,
                           color: Colors.blue[300],
-                        )
-                      : null,
+                        ),
+                      if (task.notes != null)
+                        Icon(
+                          Icons.note,
+                          color: Colors.blue[300],
+                        ),
+                    ],
+                  ),
                 ),
               )),
           const SizedBox(height: 16),
@@ -194,6 +268,53 @@ class _CalendarScreenState extends State<CalendarScreen> {
               )),
         ],
       ],
+    );
+  }
+
+  void _showTaskDetailDialog(BuildContext context, Task task) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(task.title),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (task.description != null) ...[
+                const Text('설명', style: TextStyle(fontWeight: FontWeight.bold)),
+                Text(task.description!),
+                const SizedBox(height: 12),
+              ],
+              if (task.notes != null) ...[
+                const Text('메모', style: TextStyle(fontWeight: FontWeight.bold)),
+                Text(task.notes!),
+                const SizedBox(height: 12),
+              ],
+              Text('알림 시간: ${task.scheduledHour.toString().padLeft(2, '0')}:${task.scheduledMinute.toString().padLeft(2, '0')}'),
+              Text('알림 간격: ${task.getReminderIntervalText()} 전'),
+              const SizedBox(height: 12),
+              Text('반복: ${task.frequency == TaskFrequency.daily ? '매일' : '매월 ${task.dayOfMonth}일'}'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('닫기'),
+          ),
+          FilledButton(
+            onPressed: () {
+              context.read<TaskProvider>().toggleTaskCompletion(task);
+              Navigator.pop(dialogContext);
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: task.isCompleted ? Colors.orange : Colors.green,
+            ),
+            child: Text(task.isCompleted ? '완료 취소' : '완료'),
+          ),
+        ],
+      ),
     );
   }
 }

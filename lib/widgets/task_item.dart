@@ -46,6 +46,7 @@ class TaskItem extends StatelessWidget {
         ),
         child: Card(
           elevation: task.isCompleted ? 0 : 2,
+          color: task.isCompleted ? Colors.grey[100] : null,
           child: ListTile(
             leading: Checkbox(
               value: task.isCompleted,
@@ -58,7 +59,7 @@ class TaskItem extends StatelessWidget {
               style: TextStyle(
                 decoration:
                     task.isCompleted ? TextDecoration.lineThrough : null,
-                color: task.isCompleted ? Colors.grey : null,
+                color: task.isCompleted ? Colors.grey[600] : Colors.blue[700],
               ),
             ),
             subtitle: Column(
@@ -69,6 +70,15 @@ class TaskItem extends StatelessWidget {
                     task.description!,
                     style: TextStyle(
                       color: task.isCompleted ? Colors.grey : null,
+                    ),
+                  ),
+                if (task.notes != null)
+                  Text(
+                    task.notes!,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: task.isCompleted ? Colors.grey[500] : Colors.blue[600],
+                      fontStyle: FontStyle.italic,
                     ),
                   ),
                 const SizedBox(height: 4),

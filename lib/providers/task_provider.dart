@@ -120,9 +120,9 @@ class TaskProvider with ChangeNotifier {
   List<Birthday> getBirthdaysForDate(DateTime date) {
     return _birthdays.where((birthday) {
       if (birthday.isLunar) {
-        // For lunar birthdays, convert to solar date for this year
+        // For lunar birthdays, convert to solar date for the target year
         final solarBirthdayThisYear =
-            LunarService.instance.getLunarBirthdayThisYear(birthday.date);
+            LunarService.instance.getLunarBirthdayThisYear(birthday.date, date.year);
         return solarBirthdayThisYear.year == date.year &&
                solarBirthdayThisYear.month == date.month &&
                solarBirthdayThisYear.day == date.day;
@@ -137,10 +137,10 @@ class TaskProvider with ChangeNotifier {
   List<Birthday> getBirthdaysForMonth(int year, int month) {
     return _birthdays.where((birthday) {
       if (birthday.isLunar) {
-        // For lunar birthdays, convert to solar date for this year
+        // For lunar birthdays, convert to solar date for the target year
         try {
           final solarBirthdayThisYear =
-              LunarService.instance.getLunarBirthdayThisYear(birthday.date);
+              LunarService.instance.getLunarBirthdayThisYear(birthday.date, year);
           return solarBirthdayThisYear.year == year &&
                  solarBirthdayThisYear.month == month;
         } catch (e) {

@@ -21,7 +21,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -31,6 +31,9 @@ class DatabaseService {
     if (oldVersion < 2) {
       await db.execute('ALTER TABLE tasks ADD COLUMN scheduledHour INTEGER NOT NULL DEFAULT 9');
       await db.execute('ALTER TABLE tasks ADD COLUMN scheduledMinute INTEGER NOT NULL DEFAULT 0');
+    }
+    if (oldVersion < 3) {
+      await db.execute('ALTER TABLE tasks ADD COLUMN notes TEXT');
     }
   }
 
@@ -55,7 +58,8 @@ class DatabaseService {
         isCompleted $intType,
         completedAt $textTypeNullable,
         createdAt $textType,
-        dueDate $textTypeNullable
+        dueDate $textTypeNullable,
+        notes $textTypeNullable
       )
     ''');
 

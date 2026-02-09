@@ -16,6 +16,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _titleController;
   late TextEditingController _descriptionController;
+  late TextEditingController _notesController;
   late TaskFrequency _frequency;
   late int _dayOfMonth;
   late int _scheduledHour;
@@ -30,6 +31,8 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
     _titleController = TextEditingController(text: widget.task?.title ?? '');
     _descriptionController =
         TextEditingController(text: widget.task?.description ?? '');
+    _notesController =
+        TextEditingController(text: widget.task?.notes ?? '');
     _frequency = widget.task?.frequency ?? TaskFrequency.daily;
     _dayOfMonth = widget.task?.dayOfMonth ?? 1;
     _scheduledHour = widget.task?.scheduledHour ?? 9;
@@ -44,6 +47,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    _notesController.dispose();
     super.dispose();
   }
 
@@ -83,6 +87,16 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
               ),
               maxLines: 3,
             ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _notesController,
+              decoration: const InputDecoration(
+                labelText: '메모 (선택사항)',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.note),
+              ),
+              maxLines: 3,
+            ),
             const SizedBox(height: 24),
             const Text(
               '반복 주기',
@@ -117,7 +131,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: DropdownButtonFormField<int>(
-                      value: _dayOfMonth,
+                      initialValue: _dayOfMonth,
                       decoration: const InputDecoration(
                         border: OutlineInputBorder(),
                       ),
@@ -256,6 +270,9 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
         isLunar: _isLunar,
         reminderInterval: _reminderInterval,
         createdAt: widget.task?.createdAt,
+        notes: _notesController.text.isEmpty
+            ? null
+            : _notesController.text,
       );
 
       final taskProvider = context.read<TaskProvider>();

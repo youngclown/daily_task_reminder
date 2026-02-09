@@ -42,7 +42,7 @@ class BirthdayScreen extends StatelessWidget {
             itemBuilder: (context, index) {
               final birthday = taskProvider.birthdays[index];
               final displayDate = birthday.isLunar
-                  ? LunarService.instance.getLunarBirthdayThisYear(birthday.date)
+                  ? LunarService.instance.getLunarBirthdayThisYear(birthday.date, DateTime.now().year)
                   : birthday.date;
 
               final daysUntil = displayDate.difference(DateTime.now()).inDays;

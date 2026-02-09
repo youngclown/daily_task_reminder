@@ -81,25 +81,36 @@ class NotificationService {
 
   Future<void> scheduleTaskReminder(Task task) async {
     if (!isSupported || !_initialized) {
-      print('Notifications not supported or not initialized, skipping schedule');
+      print('[NOTIFICATION] Notifications not supported or not initialized, skipping schedule');
       return;
     }
     if (task.isCompleted) return;
 
     try {
+      // Debug: Print scheduling information
+      print('[NOTIFICATION] ==================== Scheduling Task ====================');
+      print('[NOTIFICATION] Task: ${task.title}');
+      print('[NOTIFICATION] Target time: ${task.scheduledHour.toString().padLeft(2, '0')}:${task.scheduledMinute.toString().padLeft(2, '0')}');
+      print('[NOTIFICATION] Frequency: ${task.frequency}');
+      print('[NOTIFICATION] Day of month: ${task.dayOfMonth}');
+      print('[NOTIFICATION] Current time: ${tz.TZDateTime.now(tz.local)}');
+      print('[NOTIFICATION] Local timezone: ${tz.local.name}');
+
       // 1. Cancel existing notifications
       await cancelTaskReminder(task.id!);
 
       // 2. Calculate next scheduled time
       final nextScheduledTime = _calculateNextScheduledTime(task);
+      print('[NOTIFICATION] Scheduled at: $nextScheduledTime');
 
       // 3. Schedule main notification
       await _scheduleMainNotification(task, nextScheduledTime);
 
       // 4. Schedule reminder notification (X minutes before)
       await _scheduleReminderNotification(task, nextScheduledTime);
+      print('[NOTIFICATION] ========================================================');
     } catch (e) {
-      print('Failed to schedule task reminder: $e');
+      print('[NOTIFICATION] Failed to schedule task reminder: $e');
     }
   }
 

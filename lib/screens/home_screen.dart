@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/task_provider.dart';
-import '../models/task.dart';
 import '../widgets/task_item.dart';
 import '../services/notification_service.dart';
 import 'add_task_screen.dart';

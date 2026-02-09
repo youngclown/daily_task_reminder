@@ -1,5 +1,3 @@
-import 'package:intl/intl.dart';
-
 enum TaskFrequency {
   daily,
   monthly,
@@ -27,6 +25,7 @@ class Task {
   final DateTime? completedAt;
   final DateTime createdAt;
   final DateTime? dueDate;
+  final String? notes;
 
   Task({
     this.id,
@@ -43,6 +42,7 @@ class Task {
     this.completedAt,
     DateTime? createdAt,
     this.dueDate,
+    this.notes,
   }) : createdAt = createdAt ?? DateTime.now();
 
   Map<String, dynamic> toMap() {
@@ -61,6 +61,7 @@ class Task {
       'completedAt': completedAt?.toIso8601String(),
       'createdAt': createdAt.toIso8601String(),
       'dueDate': dueDate?.toIso8601String(),
+      'notes': notes,
     };
   }
 
@@ -83,6 +84,7 @@ class Task {
       createdAt: DateTime.parse(map['createdAt']),
       dueDate:
           map['dueDate'] != null ? DateTime.parse(map['dueDate']) : null,
+      notes: map['notes'],
     );
   }
 
@@ -101,6 +103,7 @@ class Task {
     DateTime? completedAt,
     DateTime? createdAt,
     DateTime? dueDate,
+    String? notes,
   }) {
     return Task(
       id: id ?? this.id,
@@ -117,6 +120,7 @@ class Task {
       completedAt: completedAt ?? this.completedAt,
       createdAt: createdAt ?? this.createdAt,
       dueDate: dueDate ?? this.dueDate,
+      notes: notes ?? this.notes,
     );
   }
 

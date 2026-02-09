@@ -16,7 +16,8 @@
       "Bash(cmd:*)",
       "Bash(\"C:\\\\Users\\\\DEV\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" logcat:*)",
       "Bash(\"C:\\\\Users\\\\DEV\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" kill-server)",
-      "Bash(\"C:\\\\Users\\\\DEV\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\":*)"
+      "Bash(\"C:\\\\Users\\\\DEV\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\":*)",
+      "Bash(nc:*)"
     ]
   }
 }

@@ -19,14 +19,13 @@ class LunarService {
   }
 
   // Get this year's solar date for a lunar birthday
-  DateTime getLunarBirthdayThisYear(DateTime lunarBirthDate) {
-    final thisYear = DateTime.now().year;
+  DateTime getLunarBirthdayThisYear(DateTime lunarBirthDate, int targetYear) {
     final lunar = solarToLunar(lunarBirthDate);
 
     try {
       // Simplified: use year, month, day without leap month
       final lunarThisYear = Lunar.fromYmd(
-        thisYear,
+        targetYear,
         lunar.getMonth(),
         lunar.getDay(),
       );
@@ -34,14 +33,14 @@ class LunarService {
       return DateTime(solar.getYear(), solar.getMonth(), solar.getDay());
     } catch (e) {
       // If the lunar date doesn't exist this year, return approximate date
-      return DateTime(thisYear, lunarBirthDate.month, lunarBirthDate.day);
+      return DateTime(targetYear, lunarBirthDate.month, lunarBirthDate.day);
     }
   }
 
   // Get next lunar birthday
   DateTime getNextLunarBirthday(DateTime lunarBirthDate) {
     final now = DateTime.now();
-    final thisYearBirthday = getLunarBirthdayThisYear(lunarBirthDate);
+    final thisYearBirthday = getLunarBirthdayThisYear(lunarBirthDate, now.year);
 
     if (thisYearBirthday.isAfter(now)) {
       return thisYearBirthday;
