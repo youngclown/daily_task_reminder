@@ -106,11 +106,16 @@ class TaskProvider with ChangeNotifier {
 
   List<Task> getTasksForDate(DateTime date) {
     return _tasks.where((task) {
-      if (task.isCompleted) return false;
-
+      // For daily tasks, always show them regardless of completion status
+      // (they should be completed each day independently)
       if (task.frequency == TaskFrequency.daily) {
         return true;
-      } else if (task.frequency == TaskFrequency.monthly) {
+      }
+
+      // For monthly tasks, only show if not completed
+      if (task.isCompleted) return false;
+
+      if (task.frequency == TaskFrequency.monthly) {
         return date.day == task.dayOfMonth;
       }
       return false;

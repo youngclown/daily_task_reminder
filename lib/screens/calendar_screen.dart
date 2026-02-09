@@ -173,17 +173,23 @@ class _CalendarScreenState extends State<CalendarScreen> {
           ...tasks.map((task) => Card(
                 child: ListTile(
                   onTap: () => _showTaskDetailDialog(context, task),
-                  leading: Checkbox(
-                    value: task.isCompleted,
-                    onChanged: (value) {
-                      context.read<TaskProvider>().toggleTaskCompletion(task);
-                    },
-                  ),
+                  // Only show checkbox for monthly tasks, not daily tasks
+                  leading: task.frequency == TaskFrequency.daily
+                      ? const Icon(
+                          Icons.today,
+                          color: Colors.blue,
+                        )
+                      : Checkbox(
+                          value: task.isCompleted,
+                          onChanged: (value) {
+                            context.read<TaskProvider>().toggleTaskCompletion(task);
+                          },
+                        ),
                   title: Text(
                     task.title,
                     style: TextStyle(
-                      color: task.isCompleted ? Colors.grey : Colors.blue[700],
-                      decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+                      color: task.isCompleted && task.frequency != TaskFrequency.daily ? Colors.grey : Colors.blue[700],
+                      decoration: (task.isCompleted && task.frequency != TaskFrequency.daily) ? TextDecoration.lineThrough : null,
                     ),
                   ),
                   subtitle: Column(
@@ -272,6 +278,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   void _showTaskDetailDialog(BuildContext context, Task task) {
+    final isDaily = task.frequency == TaskFrequency.daily;
+
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -294,7 +302,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
               Text('알림 시간: ${task.scheduledHour.toString().padLeft(2, '0')}:${task.scheduledMinute.toString().padLeft(2, '0')}'),
               Text('알림 간격: ${task.getReminderIntervalText()} 전'),
               const SizedBox(height: 12),
-              Text('반복: ${task.frequency == TaskFrequency.daily ? '매일' : '매월 ${task.dayOfMonth}일'}'),
+              Text('반복: ${isDaily ? '매일' : '매월 ${task.dayOfMonth}일'}'),
+              if (isDaily) ...[
+                const SizedBox(height: 8),
+                Text(
+                  '매일 반복되는 할 일입니다.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -303,16 +322,17 @@ class _CalendarScreenState extends State<CalendarScreen> {
             onPressed: () => Navigator.pop(dialogContext),
             child: const Text('닫기'),
           ),
-          FilledButton(
-            onPressed: () {
-              context.read<TaskProvider>().toggleTaskCompletion(task);
-              Navigator.pop(dialogContext);
-            },
-            style: FilledButton.styleFrom(
-              backgroundColor: task.isCompleted ? Colors.orange : Colors.green,
+          if (!isDaily)
+            FilledButton(
+              onPressed: () {
+                context.read<TaskProvider>().toggleTaskCompletion(task);
+                Navigator.pop(dialogContext);
+              },
+              style: FilledButton.styleFrom(
+                backgroundColor: task.isCompleted ? Colors.orange : Colors.green,
+              ),
+              child: Text(task.isCompleted ? '완료 취소' : '완료'),
             ),
-            child: Text(task.isCompleted ? '완료 취소' : '완료'),
-          ),
         ],
       ),
     );
