@@ -4,6 +4,7 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 import '../providers/task_provider.dart';
 import '../models/task.dart';
+import '../models/task_completion.dart';
 import '../models/birthday.dart';
 import '../services/lunar_service.dart';
 
@@ -54,7 +55,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
               eventLoader: (day) {
                 final tasks = taskProvider.getTasksForDate(day);
                 final birthdays = taskProvider.getBirthdaysForDate(day);
-                // Return combined list for marker display
                 return [...tasks, ...birthdays];
               },
               calendarBuilders: CalendarBuilders(
@@ -170,68 +170,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          ...tasks.map((task) => Card(
-                child: ListTile(
-                  onTap: () => _showTaskDetailDialog(context, task),
-                  // Only show checkbox for monthly tasks, not daily tasks
-                  leading: task.frequency == TaskFrequency.daily
-                      ? const Icon(
-                          Icons.today,
-                          color: Colors.blue,
-                        )
-                      : Checkbox(
-                          value: task.isCompleted,
-                          onChanged: (value) {
-                            context.read<TaskProvider>().toggleTaskCompletion(task);
-                          },
-                        ),
-                  title: Text(
-                    task.title,
-                    style: TextStyle(
-                      color: task.isCompleted && task.frequency != TaskFrequency.daily ? Colors.grey : Colors.blue[700],
-                      decoration: (task.isCompleted && task.frequency != TaskFrequency.daily) ? TextDecoration.lineThrough : null,
-                    ),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (task.description != null)
-                        Text(task.description!),
-                      if (task.notes != null)
-                        Text(
-                          task.notes!,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.blue[600],
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      Text(
-                        '${task.scheduledHour.toString().padLeft(2, '0')}:${task.scheduledMinute.toString().padLeft(2, '0')}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    ],
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (task.frequency == TaskFrequency.monthly)
-                        Icon(
-                          Icons.calendar_month,
-                          color: Colors.blue[300],
-                        ),
-                      if (task.notes != null)
-                        Icon(
-                          Icons.note,
-                          color: Colors.blue[300],
-                        ),
-                    ],
-                  ),
-                ),
-              )),
+          ...tasks.map((task) => _buildTaskCard(context, task, taskProvider, selectedDay)),
           const SizedBox(height: 16),
         ],
         if (birthdays.isNotEmpty) ...[
@@ -277,8 +216,72 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
-  void _showTaskDetailDialog(BuildContext context, Task task) {
+  Widget _buildTaskCard(BuildContext context, Task task, TaskProvider taskProvider, DateTime selectedDay) {
+    // For daily tasks, check completion on the selected date
+    final isCompleted = task.frequency == TaskFrequency.daily
+        ? taskProvider.isDailyTaskCompletedOn(task.id!, selectedDay)
+        : task.isCompleted;
+
+    return Card(
+      child: ListTile(
+        onTap: () => _showTaskDetailDialog(context, task, selectedDay),
+        leading: Checkbox(
+          value: isCompleted,
+          onChanged: (value) {
+            taskProvider.toggleTaskCompletion(task);
+          },
+        ),
+        title: Text(
+          task.title,
+          style: TextStyle(
+            color: isCompleted ? Colors.grey : Colors.blue[700],
+            decoration: isCompleted ? TextDecoration.lineThrough : null,
+          ),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (task.description != null)
+              Text(task.description!),
+            if (task.notes != null)
+              Text(
+                task.notes!,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.blue[600],
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            Text(
+              '${task.scheduledHour.toString().padLeft(2, '0')}:${task.scheduledMinute.toString().padLeft(2, '0')}',
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (task.frequency == TaskFrequency.daily)
+              Icon(Icons.today, color: Colors.blue[300]),
+            if (task.frequency == TaskFrequency.monthly)
+              Icon(Icons.calendar_month, color: Colors.blue[300]),
+            if (task.notes != null)
+              Icon(Icons.note, color: Colors.blue[300]),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showTaskDetailDialog(BuildContext context, Task task, DateTime selectedDay) {
+    final taskProvider = context.read<TaskProvider>();
     final isDaily = task.frequency == TaskFrequency.daily;
+    final isCompleted = isDaily
+        ? taskProvider.isDailyTaskCompletedOn(task.id!, selectedDay)
+        : task.isCompleted;
 
     showDialog(
       context: context,
@@ -306,7 +309,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
               if (isDaily) ...[
                 const SizedBox(height: 8),
                 Text(
-                  '매일 반복되는 할 일입니다.',
+                  '매일 반복되는 할 일입니다. 각 날짜별로 완료 여부를 기록합니다.',
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.grey[600],
@@ -322,17 +325,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
             onPressed: () => Navigator.pop(dialogContext),
             child: const Text('닫기'),
           ),
-          if (!isDaily)
-            FilledButton(
-              onPressed: () {
-                context.read<TaskProvider>().toggleTaskCompletion(task);
-                Navigator.pop(dialogContext);
-              },
-              style: FilledButton.styleFrom(
-                backgroundColor: task.isCompleted ? Colors.orange : Colors.green,
-              ),
-              child: Text(task.isCompleted ? '완료 취소' : '완료'),
+          FilledButton(
+            onPressed: () {
+              taskProvider.toggleTaskCompletion(task);
+              Navigator.pop(dialogContext);
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: isCompleted ? Colors.orange : Colors.green,
             ),
+            child: Text(isCompleted ? '완료 취소' : '완료'),
+          ),
         ],
       ),
     );

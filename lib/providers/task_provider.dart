@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/task.dart';
 import '../models/birthday.dart';
+import '../models/task_completion.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
 import '../services/lunar_service.dart';
@@ -14,10 +15,40 @@ class TaskProvider with ChangeNotifier {
   List<Birthday> get birthdays => _birthdays;
   bool get isLoading => _isLoading;
 
-  List<Task> get activeTasks =>
-      _tasks.where((task) => !task.isCompleted).toList();
-  List<Task> get completedTasks =>
-      _tasks.where((task) => task.isCompleted).toList();
+  // Get today's date at midnight for consistent comparison
+  DateTime get _today => TaskCompletion.getDateOnly(DateTime.now());
+
+  List<Task> get activeTasks {
+    final today = _today;
+    return _tasks.where((task) {
+      if (task.frequency == TaskFrequency.daily) {
+        // For daily tasks, check if completed today
+        return !_isDailyTaskCompletedOn(task.id!, today);
+      }
+      return !task.isCompleted;
+    }).toList();
+  }
+
+  List<Task> get completedTasks {
+    final today = _today;
+    return _tasks.where((task) {
+      if (task.frequency == TaskFrequency.daily) {
+        // For daily tasks, check if completed today
+        return _isDailyTaskCompletedOn(task.id!, today);
+      }
+      return task.isCompleted;
+    }).toList();
+  }
+
+  // Check if daily task is completed on specific date
+  bool _isDailyTaskCompletedOn(String taskId, DateTime date) {
+    return _dailyTaskCompletions
+        .where((c) => c.taskId == taskId && c.date == date)
+        .isNotEmpty;
+  }
+
+  // Cache for daily task completions
+  final List<TaskCompletion> _dailyTaskCompletions = [];
 
   Future<void> loadTasks() async {
     _isLoading = true;
@@ -25,8 +56,20 @@ class TaskProvider with ChangeNotifier {
 
     _tasks = await DatabaseService.instance.readAllTasks();
 
+    // Load all daily task completions
+    await _loadDailyTaskCompletions();
+
     _isLoading = false;
     notifyListeners();
+  }
+
+  Future<void> _loadDailyTaskCompletions() async {
+    final db = await DatabaseService.instance.database;
+    final result = await db.query('task_completions');
+    _dailyTaskCompletions.clear();
+    _dailyTaskCompletions.addAll(
+      result.map((map) => TaskCompletion.fromMap(map)).toList(),
+    );
   }
 
   Future<void> loadBirthdays() async {
@@ -55,11 +98,16 @@ class TaskProvider with ChangeNotifier {
     if (index != -1) {
       _tasks[index] = task;
 
-      // Update notification
-      if (task.isCompleted) {
-        await NotificationService.instance.cancelTaskReminder(task.id!);
-      } else {
+      // For daily tasks, always keep notification active
+      // For monthly tasks, cancel notification when completed
+      if (task.frequency == TaskFrequency.daily) {
         await NotificationService.instance.scheduleTaskReminder(task);
+      } else {
+        if (task.isCompleted) {
+          await NotificationService.instance.cancelTaskReminder(task.id!);
+        } else {
+          await NotificationService.instance.scheduleTaskReminder(task);
+        }
       }
 
       notifyListeners();
@@ -67,11 +115,31 @@ class TaskProvider with ChangeNotifier {
   }
 
   Future<void> toggleTaskCompletion(Task task) async {
-    final updatedTask = task.copyWith(
-      isCompleted: !task.isCompleted,
-      completedAt: !task.isCompleted ? DateTime.now() : null,
-    );
-    await updateTask(updatedTask);
+    if (task.frequency == TaskFrequency.daily) {
+      // For daily tasks, use task_completions table
+      final today = _today;
+      if (_isDailyTaskCompletedOn(task.id!, today)) {
+        // Uncomplete: remove from task_completions
+        await DatabaseService.instance.deleteTaskCompletion(task.id!, today);
+        _dailyTaskCompletions.removeWhere(
+          (c) => c.taskId == task.id! && c.date == today,
+        );
+      } else {
+        // Complete: add to task_completions
+        await DatabaseService.instance.createTaskCompletion(task.id!, today);
+        _dailyTaskCompletions.add(
+          TaskCompletion(taskId: task.id!, date: today),
+        );
+      }
+      notifyListeners();
+    } else {
+      // For monthly tasks, use existing isCompleted field
+      final updatedTask = task.copyWith(
+        isCompleted: !task.isCompleted,
+        completedAt: !task.isCompleted ? DateTime.now() : null,
+      );
+      await updateTask(updatedTask);
+    }
   }
 
   Future<void> deleteTask(String taskId) async {
@@ -105,11 +173,10 @@ class TaskProvider with ChangeNotifier {
   }
 
   List<Task> getTasksForDate(DateTime date) {
+    final targetDate = TaskCompletion.getDateOnly(date);
     return _tasks.where((task) {
-      // For daily tasks, always show them regardless of completion status
-      // (they should be completed each day independently)
       if (task.frequency == TaskFrequency.daily) {
-        return true;
+        return true; // Always show daily tasks
       }
 
       // For monthly tasks, only show if not completed
@@ -120,6 +187,11 @@ class TaskProvider with ChangeNotifier {
       }
       return false;
     }).toList();
+  }
+
+  // Check if a daily task is completed on a specific date
+  bool isDailyTaskCompletedOn(String taskId, DateTime date) {
+    return _isDailyTaskCompletedOn(taskId, TaskCompletion.getDateOnly(date));
   }
 
   List<Birthday> getBirthdaysForDate(DateTime date) {

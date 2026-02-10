@@ -2,6 +2,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/task.dart';
 import '../models/birthday.dart';
+import '../models/task_completion.dart';
 
 class DatabaseService {
   static final DatabaseService instance = DatabaseService._init();
@@ -21,7 +22,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -34,6 +35,18 @@ class DatabaseService {
     }
     if (oldVersion < 3) {
       await db.execute('ALTER TABLE tasks ADD COLUMN notes TEXT');
+    }
+    if (oldVersion < 4) {
+      // Create task_completions table
+      await db.execute('''
+        CREATE TABLE task_completions (
+          taskId TEXT NOT NULL,
+          date TEXT NOT NULL,
+          PRIMARY KEY (taskId, date)
+        )
+      ''');
+      // Reset daily tasks isCompleted status
+      await db.execute('UPDATE tasks SET isCompleted = 0, completedAt = NULL WHERE frequency = 0');
     }
   }
 
@@ -71,6 +84,14 @@ class DatabaseService {
         isLunar $intType,
         notes $textTypeNullable,
         createdAt $textType
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE task_completions (
+        taskId TEXT NOT NULL,
+        date TEXT NOT NULL,
+        PRIMARY KEY (taskId, date)
       )
     ''');
   }
@@ -153,5 +174,45 @@ class DatabaseService {
   Future close() async {
     final db = await database;
     db.close();
+  }
+
+  // TaskCompletion operations
+  Future<void> createTaskCompletion(String taskId, DateTime date) async {
+    final db = await database;
+    await db.insert(
+      'task_completions',
+      TaskCompletion(taskId: taskId, date: date).toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> deleteTaskCompletion(String taskId, DateTime date) async {
+    final db = await database;
+    await db.delete(
+      'task_completions',
+      where: 'taskId = ? AND date = ?',
+      whereArgs: [taskId, TaskCompletion.getDateOnly(date).toIso8601String()],
+    );
+  }
+
+  Future<bool> isTaskCompletedOnDate(String taskId, DateTime date) async {
+    final db = await database;
+    final result = await db.query(
+      'task_completions',
+      where: 'taskId = ? AND date = ?',
+      whereArgs: [taskId, TaskCompletion.getDateOnly(date).toIso8601String()],
+    );
+    return result.isNotEmpty;
+  }
+
+  Future<List<DateTime>> getCompletedDatesForTask(String taskId) async {
+    final db = await database;
+    final result = await db.query(
+      'task_completions',
+      where: 'taskId = ?',
+      whereArgs: [taskId],
+      orderBy: 'date DESC',
+    );
+    return result.map((row) => DateTime.parse(row['date'] as String)).toList();
   }
 }

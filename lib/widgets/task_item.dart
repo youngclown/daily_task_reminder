@@ -13,6 +13,13 @@ class TaskItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final taskProvider = context.watch<TaskProvider>();
+
+    // For daily tasks, check today's completion status from task_completions
+    final isCompleted = task.frequency == TaskFrequency.daily
+        ? taskProvider.isDailyTaskCompletedOn(task.id!, DateTime.now())
+        : task.isCompleted;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Slidable(
@@ -45,21 +52,21 @@ class TaskItem extends StatelessWidget {
           ],
         ),
         child: Card(
-          elevation: task.isCompleted ? 0 : 2,
-          color: task.isCompleted ? Colors.grey[100] : null,
+          elevation: isCompleted ? 0 : 2,
+          color: isCompleted ? Colors.grey[100] : null,
           child: ListTile(
             leading: Checkbox(
-              value: task.isCompleted,
+              value: isCompleted,
               onChanged: (value) {
-                context.read<TaskProvider>().toggleTaskCompletion(task);
+                taskProvider.toggleTaskCompletion(task);
               },
             ),
             title: Text(
               task.title,
               style: TextStyle(
                 decoration:
-                    task.isCompleted ? TextDecoration.lineThrough : null,
-                color: task.isCompleted ? Colors.grey[600] : Colors.blue[700],
+                    isCompleted ? TextDecoration.lineThrough : null,
+                color: isCompleted ? Colors.grey[600] : Colors.blue[700],
               ),
             ),
             subtitle: Column(
@@ -69,7 +76,7 @@ class TaskItem extends StatelessWidget {
                   Text(
                     task.description!,
                     style: TextStyle(
-                      color: task.isCompleted ? Colors.grey : null,
+                      color: isCompleted ? Colors.grey : null,
                     ),
                   ),
                 if (task.notes != null)
@@ -77,7 +84,7 @@ class TaskItem extends StatelessWidget {
                     task.notes!,
                     style: TextStyle(
                       fontSize: 12,
-                      color: task.isCompleted ? Colors.grey[500] : Colors.blue[600],
+                      color: isCompleted ? Colors.grey[500] : Colors.blue[600],
                       fontStyle: FontStyle.italic,
                     ),
                   ),
@@ -129,12 +136,23 @@ class TaskItem extends StatelessWidget {
                     ),
                   ],
                 ),
-                if (task.completedAt != null)
+                // Only show completedAt for non-daily tasks
+                if (task.frequency != TaskFrequency.daily && task.completedAt != null)
                   Text(
                     '완료: ${DateFormat('M월 d일 HH:mm').format(task.completedAt!)}',
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.grey[600],
+                    ),
+                  ),
+                // For daily tasks, show today's completion status
+                if (task.frequency == TaskFrequency.daily && isCompleted)
+                  Text(
+                    '오늘 완료',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.green[600],
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
               ],
