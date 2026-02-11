@@ -229,4 +229,106 @@ class TaskProvider with ChangeNotifier {
       }
     }).toList();
   }
+
+  // Monthly completion rate statistics
+  MonthlyStats getMonthlyStats(int year, int month) {
+    final dailyTasks = _tasks.where((t) => t.frequency == TaskFrequency.daily).toList();
+
+    // Get first and last day of the month
+    final firstDay = DateTime(year, month, 1);
+    final lastDay = month < 12
+        ? DateTime(year, month + 1, 0)
+        : DateTime(year, 12, 31);
+
+    // Count days from first day to today (or last day if past month)
+    final today = _today;
+    final endDate = today.isBefore(lastDay) && today.year == year && today.month == month
+        ? today
+        : lastDay;
+    final totalDaysInPeriod = endDate.day;
+    final currentDay = today.year == year && today.month == month ? today.day : endDate.day;
+
+    Map<String, TaskMonthlyStats> taskStats = {};
+
+    for (final task in dailyTasks) {
+      int completedDays = 0;
+      int totalDays = totalDaysInPeriod;
+
+      // Count completions for this task in the month
+      for (int day = 1; day <= currentDay; day++) {
+        final checkDate = DateTime(year, month, day);
+        final dateOnly = TaskCompletion.getDateOnly(checkDate);
+        if (_isDailyTaskCompletedOn(task.id!, dateOnly)) {
+          completedDays++;
+        }
+      }
+
+      final rate = totalDays > 0 ? (completedDays / totalDays * 100) : 0.0;
+      taskStats[task.id!] = TaskMonthlyStats(
+        task: task,
+        completedDays: completedDays,
+        totalDays: totalDays,
+        completionRate: rate,
+      );
+    }
+
+    // Calculate overall stats
+    int totalCompleted = 0;
+    int totalPossible = dailyTasks.length * totalDaysInPeriod;
+    for (final stat in taskStats.values) {
+      totalCompleted += stat.completedDays;
+    }
+
+    final overallRate = totalPossible > 0 ? (totalCompleted / totalPossible * 100) : 0.0;
+
+    return MonthlyStats(
+      year: year,
+      month: month,
+      totalDays: totalDaysInPeriod,
+      currentDay: currentDay,
+      overallCompletionRate: overallRate,
+      taskStats: taskStats.values.toList(),
+    );
+  }
+
+  // Get stats for current month
+  MonthlyStats get currentMonthStats {
+    final now = DateTime.now();
+    return getMonthlyStats(now.year, now.month);
+  }
+}
+
+// Statistics models
+class MonthlyStats {
+  final int year;
+  final int month;
+  final int totalDays;
+  final int currentDay;
+  final double overallCompletionRate;
+  final List<TaskMonthlyStats> taskStats;
+
+  MonthlyStats({
+    required this.year,
+    required this.month,
+    required this.totalDays,
+    required this.currentDay,
+    required this.overallCompletionRate,
+    required this.taskStats,
+  });
+
+  String get monthLabel => '$year년 ${month}월';
+}
+
+class TaskMonthlyStats {
+  final Task task;
+  final int completedDays;
+  final int totalDays;
+  final double completionRate;
+
+  TaskMonthlyStats({
+    required this.task,
+    required this.completedDays,
+    required this.totalDays,
+    required this.completionRate,
+  });
 }

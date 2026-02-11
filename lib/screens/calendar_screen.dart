@@ -113,6 +113,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 weekendStyle: TextStyle(fontSize: 12),
               ),
             ),
+            // Monthly stats bar
+            _buildMonthlyStatsBar(taskProvider),
             const Divider(height: 1),
             Expanded(
               child: _buildEventList(taskProvider),
@@ -120,6 +122,65 @@ class _CalendarScreenState extends State<CalendarScreen> {
           ],
         );
       },
+    );
+  }
+
+  Widget _buildMonthlyStatsBar(TaskProvider taskProvider) {
+    final stats = taskProvider.getMonthlyStats(_focusedDay.year, _focusedDay.month);
+    final rate = stats.overallCompletionRate;
+    Color progressColor;
+
+    if (rate >= 80) {
+      progressColor = Colors.green;
+    } else if (rate >= 60) {
+      progressColor = Colors.blue;
+    } else if (rate >= 40) {
+      progressColor = Colors.orange;
+    } else {
+      progressColor = Colors.red;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      color: Colors.grey[100],
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '${stats.monthLabel} 달성률',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: rate / 100,
+                    minHeight: 6,
+                    backgroundColor: Colors.grey[300],
+                    valueColor: AlwaysStoppedAnimation<Color>(progressColor),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            '${rate.toStringAsFixed(1)}%',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: progressColor,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

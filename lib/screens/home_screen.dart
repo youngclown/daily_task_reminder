@@ -6,6 +6,7 @@ import '../services/notification_service.dart';
 import 'add_task_screen.dart';
 import 'calendar_screen.dart';
 import 'birthday_screen.dart';
+import 'statistics_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -40,6 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
       const TaskListTab(),
       const CalendarScreen(),
       const BirthdayScreen(),
+      const StatisticsScreen(),
     ];
 
     return Scaffold(
@@ -67,6 +69,10 @@ class _HomeScreenState extends State<HomeScreen> {
           NavigationDestination(
             icon: Icon(Icons.cake),
             label: '생일',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.bar_chart),
+            label: '통계',
           ),
         ],
       ),
@@ -100,6 +106,7 @@ class TaskListTab extends StatelessWidget {
 
         final activeTasks = taskProvider.activeTasks;
         final completedTasks = taskProvider.completedTasks;
+        final monthlyStats = taskProvider.currentMonthStats;
 
         if (activeTasks.isEmpty && completedTasks.isEmpty) {
           return Center(
@@ -135,6 +142,9 @@ class TaskListTab extends StatelessWidget {
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // Monthly stats card
+            _buildMonthlyStatsCard(context, monthlyStats),
+            const SizedBox(height: 16),
             if (activeTasks.isNotEmpty) ...[
               const Text(
                 '진행 중',
@@ -161,6 +171,89 @@ class TaskListTab extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+
+  Widget _buildMonthlyStatsCard(BuildContext context, monthlyStats) {
+    final rate = monthlyStats.overallCompletionRate;
+    Color progressColor;
+    String statusText;
+
+    if (rate >= 80) {
+      progressColor = Colors.green;
+      statusText = '훌륭해요!';
+    } else if (rate >= 60) {
+      progressColor = Colors.blue;
+      statusText = '잘하고 있어요';
+    } else if (rate >= 40) {
+      progressColor = Colors.orange;
+      statusText = '조금만 더!';
+    } else {
+      progressColor = Colors.red;
+      statusText = '화이팅!';
+    }
+
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '${monthlyStats.monthLabel} 달성률',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  '${rate.toStringAsFixed(1)}%',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: progressColor,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: rate / 100,
+                minHeight: 10,
+                backgroundColor: Colors.grey[200],
+                valueColor: AlwaysStoppedAnimation<Color>(progressColor),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  statusText,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: progressColor,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  '${monthlyStats.currentDay}/${monthlyStats.totalDays}일',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
