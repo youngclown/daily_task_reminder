@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/task.dart';
 import '../providers/task_provider.dart';
 
@@ -17,6 +18,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   late TextEditingController _titleController;
   late TextEditingController _descriptionController;
   late TextEditingController _notesController;
+  late TextEditingController _linkedAppUrlController;
   late TaskFrequency _frequency;
   late int _dayOfMonth;
   late int _scheduledHour;
@@ -33,6 +35,8 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
         TextEditingController(text: widget.task?.description ?? '');
     _notesController =
         TextEditingController(text: widget.task?.notes ?? '');
+    _linkedAppUrlController =
+        TextEditingController(text: widget.task?.linkedAppUrl ?? '');
     _frequency = widget.task?.frequency ?? TaskFrequency.daily;
     _dayOfMonth = widget.task?.dayOfMonth ?? 1;
     _scheduledHour = widget.task?.scheduledHour ?? 9;
@@ -48,6 +52,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
     _titleController.dispose();
     _descriptionController.dispose();
     _notesController.dispose();
+    _linkedAppUrlController.dispose();
     super.dispose();
   }
 
@@ -89,6 +94,35 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
             ),
             const SizedBox(height: 16),
             TextFormField(
+              controller: _linkedAppUrlController,
+              decoration: InputDecoration(
+                labelText: '연결된 앱/웹사이트 URL (선택사항)',
+                border: const OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.link),
+                suffixIcon: _linkedAppUrlController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.open_in_new),
+                        onPressed: () => _testUrl(),
+                        tooltip: 'URL 테스트',
+                      )
+                    : null,
+                helperText: 'https://, tel:, mailto:, 앱 스킴 등',
+              ),
+              keyboardType: TextInputType.url,
+              onChanged: (value) {
+                setState(() {});
+              },
+              validator: (value) {
+                if (value != null && value.isNotEmpty) {
+                  if (!_isValidUrl(value)) {
+                    return '올바른 URL 형식이 아닙니다';
+                  }
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
               controller: _notesController,
               decoration: const InputDecoration(
                 labelText: '메모 (선택사항)',
@@ -96,6 +130,35 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                 prefixIcon: Icon(Icons.note),
               ),
               maxLines: 3,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _linkedAppUrlController,
+              decoration: InputDecoration(
+                labelText: '연결된 앱/웹사이트 URL (선택사항)',
+                border: const OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.link),
+                suffixIcon: _linkedAppUrlController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.open_in_new),
+                        onPressed: () => _testUrl(),
+                        tooltip: 'URL 테스트',
+                      )
+                    : null,
+                helperText: 'https://, tel:, mailto:, 앱 스킴 등',
+              ),
+              keyboardType: TextInputType.url,
+              onChanged: (value) {
+                setState(() {});
+              },
+              validator: (value) {
+                if (value != null && value.isNotEmpty) {
+                  if (!_isValidUrl(value)) {
+                    return '올바른 URL 형식이 아닙니다';
+                  }
+                }
+                return null;
+              },
             ),
             const SizedBox(height: 24),
             const Text(
@@ -273,6 +336,9 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
         notes: _notesController.text.isEmpty
             ? null
             : _notesController.text,
+        linkedAppUrl: _linkedAppUrlController.text.isEmpty
+            ? null
+            : _linkedAppUrlController.text,
       );
 
       final taskProvider = context.read<TaskProvider>();
@@ -288,6 +354,50 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
           SnackBar(
             content: Text(widget.task == null ? '할 일이 추가되었습니다' : '할 일이 수정되었습니다'),
           ),
+        );
+      }
+    }
+  }
+
+  bool _isValidUrl(String url) {
+    if (url.isEmpty) return true;
+
+    // Check for common URL schemes
+    final validSchemes = [
+      'http://',
+      'https://',
+      'tel:',
+      'mailto:',
+      'sms:',
+      'file://',
+    ];
+
+    // Check if it starts with a valid scheme
+    for (final scheme in validSchemes) {
+      if (url.toLowerCase().startsWith(scheme)) {
+        return true;
+      }
+    }
+
+    // Check for custom app schemes (e.g., myapp://, kakaotalk://)
+    if (RegExp(r'^[a-zA-Z][a-zA-Z0-9+.-]*://').hasMatch(url)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  Future<void> _testUrl() async {
+    final url = _linkedAppUrlController.text;
+    if (url.isEmpty) return;
+
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('URL을 열 수 없습니다')),
         );
       }
     }

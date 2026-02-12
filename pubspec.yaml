@@ -33,6 +33,9 @@ dependencies:
   table_calendar: ^3.0.9
   flutter_slidable: ^3.0.1
 
+  # URL launcher
+  url_launcher: ^6.3.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

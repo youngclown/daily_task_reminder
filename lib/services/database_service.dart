@@ -22,7 +22,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -48,6 +48,9 @@ class DatabaseService {
       // Reset daily tasks isCompleted status
       await db.execute('UPDATE tasks SET isCompleted = 0, completedAt = NULL WHERE frequency = 0');
     }
+    if (oldVersion < 5) {
+      await db.execute('ALTER TABLE tasks ADD COLUMN linkedAppUrl TEXT');
+    }
   }
 
   Future _createDB(Database db, int version) async {
@@ -72,7 +75,8 @@ class DatabaseService {
         completedAt $textTypeNullable,
         createdAt $textType,
         dueDate $textTypeNullable,
-        notes $textTypeNullable
+        notes $textTypeNullable,
+        linkedAppUrl $textTypeNullable
       )
     ''');
 

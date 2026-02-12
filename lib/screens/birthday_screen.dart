@@ -41,12 +41,27 @@ class BirthdayScreen extends StatelessWidget {
             itemCount: taskProvider.birthdays.length,
             itemBuilder: (context, index) {
               final birthday = taskProvider.birthdays[index];
-              final displayDate = birthday.isLunar
-                  ? LunarService.instance.getLunarBirthdayThisYear(birthday.date, DateTime.now().year)
-                  : birthday.date;
+              final now = DateTime.now();
 
-              final daysUntil = displayDate.difference(DateTime.now()).inDays;
-              final age = DateTime.now().year - birthday.date.year;
+              // Calculate this year's birthday
+              DateTime displayDate;
+              if (birthday.isLunar) {
+                displayDate = LunarService.instance.getLunarBirthdayThisYear(birthday.date, now.year);
+              } else {
+                displayDate = DateTime(now.year, birthday.date.month, birthday.date.day);
+              }
+
+              // If this year's birthday has passed, use next year's birthday
+              if (displayDate.isBefore(DateTime(now.year, now.month, now.day))) {
+                if (birthday.isLunar) {
+                  displayDate = LunarService.instance.getLunarBirthdayThisYear(birthday.date, now.year + 1);
+                } else {
+                  displayDate = DateTime(now.year + 1, birthday.date.month, birthday.date.day);
+                }
+              }
+
+              final daysUntil = displayDate.difference(DateTime(now.year, now.month, now.day)).inDays;
+              final age = now.year - birthday.date.year;
 
               return Card(
                 child: ListTile(

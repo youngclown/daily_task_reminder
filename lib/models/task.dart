@@ -26,6 +26,7 @@ class Task {
   final DateTime createdAt;
   final DateTime? dueDate;
   final String? notes;
+  final String? linkedAppUrl;
 
   Task({
     this.id,
@@ -43,6 +44,7 @@ class Task {
     DateTime? createdAt,
     this.dueDate,
     this.notes,
+    this.linkedAppUrl,
   }) : createdAt = createdAt ?? DateTime.now();
 
   Map<String, dynamic> toMap() {
@@ -62,6 +64,7 @@ class Task {
       'createdAt': createdAt.toIso8601String(),
       'dueDate': dueDate?.toIso8601String(),
       'notes': notes,
+      'linkedAppUrl': linkedAppUrl,
     };
   }
 
@@ -85,6 +88,7 @@ class Task {
       dueDate:
           map['dueDate'] != null ? DateTime.parse(map['dueDate']) : null,
       notes: map['notes'],
+      linkedAppUrl: map['linkedAppUrl'],
     );
   }
 
@@ -104,6 +108,7 @@ class Task {
     DateTime? createdAt,
     DateTime? dueDate,
     String? notes,
+    String? linkedAppUrl,
   }) {
     return Task(
       id: id ?? this.id,
@@ -121,6 +126,7 @@ class Task {
       createdAt: createdAt ?? this.createdAt,
       dueDate: dueDate ?? this.dueDate,
       notes: notes ?? this.notes,
+      linkedAppUrl: linkedAppUrl ?? this.linkedAppUrl,
     );
   }
 

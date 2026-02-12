@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/task.dart';
 import '../providers/task_provider.dart';
 import '../screens/add_task_screen.dart';
@@ -61,6 +62,9 @@ class TaskItem extends StatelessWidget {
                 taskProvider.toggleTaskCompletion(task);
               },
             ),
+            onTap: task.linkedAppUrl != null && task.linkedAppUrl!.isNotEmpty
+                ? () => _launchLinkedApp(context)
+                : null,
             title: Text(
               task.title,
               style: TextStyle(
@@ -157,15 +161,31 @@ class TaskItem extends StatelessWidget {
                   ),
               ],
             ),
-            trailing: task.isLunar
-                ? Tooltip(
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (task.linkedAppUrl != null && task.linkedAppUrl!.isNotEmpty)
+                  Tooltip(
+                    message: '연결된 앱 실행',
+                    child: Icon(
+                      Icons.link,
+                      color: Colors.blue[400],
+                      size: 20,
+                    ),
+                  ),
+                if (task.isLunar) ...[
+                  if (task.linkedAppUrl != null && task.linkedAppUrl!.isNotEmpty)
+                    const SizedBox(width: 8),
+                  Tooltip(
                     message: '음력 날짜',
                     child: Icon(
                       Icons.nightlight_round,
                       color: Colors.orange[300],
                     ),
-                  )
-                : null,
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
       ),
@@ -212,5 +232,28 @@ class TaskItem extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _launchLinkedApp(BuildContext context) async {
+    final url = task.linkedAppUrl;
+    if (url == null || url.isEmpty) return;
+
+    final uri = Uri.parse(url);
+    final canLaunch = await canLaunchUrl(uri);
+
+    if (canLaunch) {
+      await launchUrl(uri);
+
+      // Also toggle task completion
+      if (context.mounted) {
+        context.read<TaskProvider>().toggleTaskCompletion(task);
+      }
+    } else {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('URL을 열 수 없습니다: $url')),
+        );
+      }
+    }
   }
 }
