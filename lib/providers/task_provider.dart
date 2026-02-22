@@ -18,37 +18,69 @@ class TaskProvider with ChangeNotifier {
   // Get today's date at midnight for consistent comparison
   DateTime get _today => TaskCompletion.getDateOnly(DateTime.now());
 
+  // 매일 할 일의 요일 필터 충족 여부
+  bool _isScheduledForDate(Task task, DateTime date) {
+    if (task.frequency != TaskFrequency.daily) return true;
+    switch (task.dailySchedule) {
+      case DailySchedule.all:
+        return true;
+      case DailySchedule.weekdaysOnly:
+        return date.weekday <= DateTime.friday; // 월~금
+      case DailySchedule.weekendsOnly:
+        return date.weekday >= DateTime.saturday; // 토~일
+    }
+  }
+
   List<Task> get activeTasks {
-    final today = _today;
+    final today = DateTime.now();
     return _tasks.where((task) {
       if (task.frequency == TaskFrequency.daily) {
-        // For daily tasks, check if completed today
-        return !_isDailyTaskCompletedOn(task.id!, today);
+        return _isScheduledForDate(task, today);
       }
-      return !task.isCompleted;
+      if (task.frequency == TaskFrequency.monthly) {
+        return true;
+      }
+      if (task.frequency == TaskFrequency.weekly) {
+        return task.dayOfWeek == today.weekday; // 오늘 요일인 경우만 표시
+      }
+      return !task.isCompleted; // once: 영구 완료되면 진행 중에서 제거
     }).toList();
   }
 
   List<Task> get completedTasks {
-    final today = _today;
     return _tasks.where((task) {
-      if (task.frequency == TaskFrequency.daily) {
-        // For daily tasks, check if completed today
-        return _isDailyTaskCompletedOn(task.id!, today);
+      if (task.frequency == TaskFrequency.daily ||
+          task.frequency == TaskFrequency.monthly ||
+          task.frequency == TaskFrequency.weekly) {
+        return false; // 반복형은 완료됨 목록에 표시 안 함
       }
-      return task.isCompleted;
+      return task.isCompleted; // once만 완료됨으로 이동
     }).toList();
   }
 
-  // Check if daily task is completed on specific date
-  bool _isDailyTaskCompletedOn(String taskId, DateTime date) {
-    return _dailyTaskCompletions
-        .where((c) => c.taskId == taskId && c.date == date)
+  // Check if task is completed on specific date (daily: day key, monthly: month key)
+  bool _isCompletedOn(String taskId, DateTime dateKey) {
+    return _taskCompletions
+        .where((c) => c.taskId == taskId && c.date == dateKey)
         .isNotEmpty;
   }
 
-  // Cache for daily task completions
-  final List<TaskCompletion> _dailyTaskCompletions = [];
+  // Legacy alias
+  bool _isDailyTaskCompletedOn(String taskId, DateTime date) =>
+      _isCompletedOn(taskId, date);
+
+  // 매월 완료 키: 해당 월의 1일
+  DateTime _monthKey(DateTime date) => DateTime(date.year, date.month, 1);
+
+  // 매월 할 일이 특정 월에 완료됐는지 확인
+  bool _isMonthlyCompletedFor(String taskId, DateTime date) =>
+      _isCompletedOn(taskId, _monthKey(date));
+
+  // Cache for all task completions (daily + monthly)
+  final List<TaskCompletion> _taskCompletions = [];
+
+  // Legacy getter for compatibility
+  List<TaskCompletion> get _dailyTaskCompletions => _taskCompletions;
 
   Future<void> loadTasks() async {
     _isLoading = true;
@@ -66,8 +98,8 @@ class TaskProvider with ChangeNotifier {
   Future<void> _loadDailyTaskCompletions() async {
     final db = await DatabaseService.instance.database;
     final result = await db.query('task_completions');
-    _dailyTaskCompletions.clear();
-    _dailyTaskCompletions.addAll(
+    _taskCompletions.clear();
+    _taskCompletions.addAll(
       result.map((map) => TaskCompletion.fromMap(map)).toList(),
     );
   }
@@ -98,9 +130,10 @@ class TaskProvider with ChangeNotifier {
     if (index != -1) {
       _tasks[index] = task;
 
-      // For daily tasks, always keep notification active
-      // For monthly tasks, cancel notification when completed
-      if (task.frequency == TaskFrequency.daily) {
+      // 반복형(daily/weekly/monthly)은 항상 알림 유지, once는 완료 시 취소
+      if (task.frequency == TaskFrequency.daily ||
+          task.frequency == TaskFrequency.weekly ||
+          task.frequency == TaskFrequency.monthly) {
         await NotificationService.instance.scheduleTaskReminder(task);
       } else {
         if (task.isCompleted) {
@@ -114,26 +147,38 @@ class TaskProvider with ChangeNotifier {
     }
   }
 
-  Future<void> toggleTaskCompletion(Task task) async {
-    if (task.frequency == TaskFrequency.daily) {
-      // For daily tasks, use task_completions table
-      final today = _today;
-      if (_isDailyTaskCompletedOn(task.id!, today)) {
-        // Uncomplete: remove from task_completions
-        await DatabaseService.instance.deleteTaskCompletion(task.id!, today);
-        _dailyTaskCompletions.removeWhere(
-          (c) => c.taskId == task.id! && c.date == today,
+  Future<void> toggleTaskCompletion(Task task, {DateTime? date}) async {
+    final refDate = date ?? DateTime.now();
+
+    if (task.frequency == TaskFrequency.daily ||
+        task.frequency == TaskFrequency.weekly) {
+      // 매일/매주: 날짜 단위로 완료 기록
+      final dateKey = TaskCompletion.getDateOnly(refDate);
+      if (_isCompletedOn(task.id!, dateKey)) {
+        await DatabaseService.instance.deleteTaskCompletion(task.id!, dateKey);
+        _taskCompletions.removeWhere(
+          (c) => c.taskId == task.id! && c.date == dateKey,
         );
       } else {
-        // Complete: add to task_completions
-        await DatabaseService.instance.createTaskCompletion(task.id!, today);
-        _dailyTaskCompletions.add(
-          TaskCompletion(taskId: task.id!, date: today),
+        await DatabaseService.instance.createTaskCompletion(task.id!, dateKey);
+        _taskCompletions.add(TaskCompletion(taskId: task.id!, date: dateKey));
+      }
+      notifyListeners();
+    } else if (task.frequency == TaskFrequency.monthly) {
+      // 매월: 월 단위로 완료 기록 (해당 월의 1일을 키로 사용)
+      final monthKey = _monthKey(refDate);
+      if (_isMonthlyCompletedFor(task.id!, refDate)) {
+        await DatabaseService.instance.deleteTaskCompletion(task.id!, monthKey);
+        _taskCompletions.removeWhere(
+          (c) => c.taskId == task.id! && c.date == monthKey,
         );
+      } else {
+        await DatabaseService.instance.createTaskCompletion(task.id!, monthKey);
+        _taskCompletions.add(TaskCompletion(taskId: task.id!, date: monthKey));
       }
       notifyListeners();
     } else {
-      // For monthly tasks, use existing isCompleted field
+      // once (일회성): 영구 완료
       final updatedTask = task.copyWith(
         isCompleted: !task.isCompleted,
         completedAt: !task.isCompleted ? DateTime.now() : null,
@@ -173,25 +218,61 @@ class TaskProvider with ChangeNotifier {
   }
 
   List<Task> getTasksForDate(DateTime date) {
-    final targetDate = TaskCompletion.getDateOnly(date);
     return _tasks.where((task) {
       if (task.frequency == TaskFrequency.daily) {
-        return true; // Always show daily tasks
+        return _isScheduledForDate(task, date);
       }
-
-      // For monthly tasks, only show if not completed
-      if (task.isCompleted) return false;
-
+      if (task.frequency == TaskFrequency.weekly) {
+        return task.dayOfWeek == date.weekday;
+      }
       if (task.frequency == TaskFrequency.monthly) {
         return date.day == task.dayOfMonth;
       }
-      return false;
+      // once: 완료 안 된 것만 표시
+      return !task.isCompleted;
     }).toList();
   }
 
-  // Check if a daily task is completed on a specific date
+  // 매일 할 일이 특정 날짜에 완료됐는지 (public)
   bool isDailyTaskCompletedOn(String taskId, DateTime date) {
-    return _isDailyTaskCompletedOn(taskId, TaskCompletion.getDateOnly(date));
+    return _isCompletedOn(taskId, TaskCompletion.getDateOnly(date));
+  }
+
+  // 매월 할 일이 특정 날짜의 해당 월에 완료됐는지 (public)
+  bool isMonthlyTaskCompletedFor(String taskId, DateTime date) {
+    return _isMonthlyCompletedFor(taskId, date);
+  }
+
+  // 할 일이 특정 날짜 기준으로 완료됐는지 통합 확인 (캘린더용)
+  bool isTaskCompletedOnDate(Task task, DateTime date) {
+    if (task.frequency == TaskFrequency.daily ||
+        task.frequency == TaskFrequency.weekly) {
+      return isDailyTaskCompletedOn(task.id!, date);
+    }
+    if (task.frequency == TaskFrequency.monthly) {
+      return isMonthlyTaskCompletedFor(task.id!, date);
+    }
+    return task.isCompleted;
+  }
+
+  // 특정 날짜에 미완료된 할 일 목록 (캘린더 마커용)
+  List<Task> getIncompleteTasksForDate(DateTime date) {
+    final dateKey = TaskCompletion.getDateOnly(date);
+    return _tasks.where((task) {
+      if (task.frequency == TaskFrequency.daily) {
+        if (!_isScheduledForDate(task, date)) return false;
+        return !_isCompletedOn(task.id!, dateKey);
+      }
+      if (task.frequency == TaskFrequency.weekly) {
+        return task.dayOfWeek == date.weekday &&
+            !_isCompletedOn(task.id!, dateKey);
+      }
+      if (task.frequency == TaskFrequency.monthly) {
+        return date.day == task.dayOfMonth &&
+            !_isMonthlyCompletedFor(task.id!, date);
+      }
+      return false;
+    }).toList();
   }
 
   List<Birthday> getBirthdaysForDate(DateTime date) {

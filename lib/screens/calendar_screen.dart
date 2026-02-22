@@ -4,7 +4,6 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 import '../providers/task_provider.dart';
 import '../models/task.dart';
-import '../models/task_completion.dart';
 import '../models/birthday.dart';
 import '../services/lunar_service.dart';
 
@@ -53,30 +52,48 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 _focusedDay = focusedDay;
               },
               eventLoader: (day) {
-                final tasks = taskProvider.getTasksForDate(day);
+                // 마커용: 미완료 할 일 + 생일
+                final incompleteTasks = taskProvider.getIncompleteTasksForDate(day);
                 final birthdays = taskProvider.getBirthdaysForDate(day);
-                return [...tasks, ...birthdays];
+                return [...incompleteTasks, ...birthdays];
               },
               calendarBuilders: CalendarBuilders(
                 markerBuilder: (context, day, events) {
                   if (events.isEmpty) return null;
 
-                  final hasTasks = events.any((e) => e is Task);
+                  final tasks = events.whereType<Task>().toList();
                   final hasBirthdays = events.any((e) => e is Birthday);
+
+                  const int maxDots = 3;
+                  final showTasks = tasks.take(maxDots).toList();
+                  final extraCount = tasks.length - maxDots;
 
                   return Positioned(
                     bottom: 1,
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (hasTasks)
-                          Container(
-                            width: 6,
-                            height: 6,
-                            margin: const EdgeInsets.symmetric(horizontal: 1),
-                            decoration: const BoxDecoration(
-                              color: Colors.blue,
-                              shape: BoxShape.circle,
+                        // 할 일별 색상 점 (최대 3개)
+                        ...showTasks.map((task) => Container(
+                          width: 6,
+                          height: 6,
+                          margin: const EdgeInsets.symmetric(horizontal: 1),
+                          decoration: BoxDecoration(
+                            color: task.taskColor,
+                            shape: BoxShape.circle,
+                          ),
+                        )),
+                        // 3개 초과 시 +N 표시
+                        if (extraCount > 0)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 1),
+                            child: Text(
+                              '+$extraCount',
+                              style: const TextStyle(
+                                fontSize: 8,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey,
+                              ),
                             ),
                           ),
                         if (hasBirthdays)
@@ -278,10 +295,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   Widget _buildTaskCard(BuildContext context, Task task, TaskProvider taskProvider, DateTime selectedDay) {
-    // For daily tasks, check completion on the selected date
-    final isCompleted = task.frequency == TaskFrequency.daily
-        ? taskProvider.isDailyTaskCompletedOn(task.id!, selectedDay)
-        : task.isCompleted;
+    final isCompleted = taskProvider.isTaskCompletedOnDate(task, selectedDay);
 
     return Card(
       child: ListTile(
@@ -289,7 +303,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
         leading: Checkbox(
           value: isCompleted,
           onChanged: (value) {
-            taskProvider.toggleTaskCompletion(task);
+            taskProvider.toggleTaskCompletion(task, date: selectedDay);
           },
         ),
         title: Text(
@@ -339,10 +353,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   void _showTaskDetailDialog(BuildContext context, Task task, DateTime selectedDay) {
     final taskProvider = context.read<TaskProvider>();
-    final isDaily = task.frequency == TaskFrequency.daily;
-    final isCompleted = isDaily
-        ? taskProvider.isDailyTaskCompletedOn(task.id!, selectedDay)
-        : task.isCompleted;
+    final isCompleted = taskProvider.isTaskCompletedOnDate(task, selectedDay);
 
     showDialog(
       context: context,
@@ -366,18 +377,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
               Text('알림 시간: ${task.scheduledHour.toString().padLeft(2, '0')}:${task.scheduledMinute.toString().padLeft(2, '0')}'),
               Text('알림 간격: ${task.getReminderIntervalText()} 전'),
               const SizedBox(height: 12),
-              Text('반복: ${isDaily ? '매일' : '매월 ${task.dayOfMonth}일'}'),
-              if (isDaily) ...[
-                const SizedBox(height: 8),
+              Text('반복: ${_frequencyLabel(task)}'),
+              const SizedBox(height: 8),
+              if (task.frequency != TaskFrequency.once)
                 Text(
-                  '매일 반복되는 할 일입니다. 각 날짜별로 완료 여부를 기록합니다.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                    fontStyle: FontStyle.italic,
-                  ),
+                  task.frequency == TaskFrequency.daily
+                      ? '매일 반복 — 날짜별 완료 기록'
+                      : '매월 반복 — 월별 완료 기록',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600], fontStyle: FontStyle.italic),
                 ),
-              ],
             ],
           ),
         ),
@@ -388,7 +396,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
           ),
           FilledButton(
             onPressed: () {
-              taskProvider.toggleTaskCompletion(task);
+              taskProvider.toggleTaskCompletion(task, date: selectedDay);
               Navigator.pop(dialogContext);
             },
             style: FilledButton.styleFrom(
@@ -399,5 +407,19 @@ class _CalendarScreenState extends State<CalendarScreen> {
         ],
       ),
     );
+  }
+
+  String _frequencyLabel(Task task) {
+    switch (task.frequency) {
+      case TaskFrequency.daily:
+        return '매일';
+      case TaskFrequency.weekly:
+        const dayNames = ['', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일'];
+        return '매주 ${dayNames[task.dayOfWeek ?? 1]}';
+      case TaskFrequency.monthly:
+        return '매월 ${task.dayOfMonth}일';
+      case TaskFrequency.once:
+        return '일회성';
+    }
   }
 }

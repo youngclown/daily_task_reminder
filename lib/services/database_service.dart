@@ -22,7 +22,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 5,
+      version: 9,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -51,6 +51,21 @@ class DatabaseService {
     if (oldVersion < 5) {
       await db.execute('ALTER TABLE tasks ADD COLUMN linkedAppUrl TEXT');
     }
+    if (oldVersion < 6) {
+      await db.execute('ALTER TABLE tasks ADD COLUMN color INTEGER');
+    }
+    if (oldVersion < 7) {
+      // true(1)=다음 평일(월요일), false(0)=이전 평일(금요일), 기본값 1(월요일)
+      await db.execute('ALTER TABLE tasks ADD COLUMN holidayAdjustToNext INTEGER NOT NULL DEFAULT 1');
+    }
+    if (oldVersion < 8) {
+      // 0=전체, 1=주말제외(평일만), 2=주말만, 기본값 0(전체)
+      await db.execute('ALTER TABLE tasks ADD COLUMN dailySchedule INTEGER NOT NULL DEFAULT 0');
+    }
+    if (oldVersion < 9) {
+      // 매주 할 일 요일: 1=월, 2=화, 3=수, 4=목, 5=금, 6=토, 7=일
+      await db.execute('ALTER TABLE tasks ADD COLUMN dayOfWeek INTEGER');
+    }
   }
 
   Future _createDB(Database db, int version) async {
@@ -66,6 +81,7 @@ class DatabaseService {
         description $textTypeNullable,
         frequency $intType,
         dayOfMonth INTEGER,
+        dayOfWeek INTEGER,
         scheduledHour $intType DEFAULT 9,
         scheduledMinute $intType DEFAULT 0,
         adjustForHolidays $intType,
@@ -76,7 +92,10 @@ class DatabaseService {
         createdAt $textType,
         dueDate $textTypeNullable,
         notes $textTypeNullable,
-        linkedAppUrl $textTypeNullable
+        linkedAppUrl $textTypeNullable,
+        color INTEGER,
+        holidayAdjustToNext INTEGER NOT NULL DEFAULT 1,
+        dailySchedule INTEGER NOT NULL DEFAULT 0
       )
     ''');
 

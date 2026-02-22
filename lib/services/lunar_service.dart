@@ -88,7 +88,7 @@ class LunarService {
 
   // Get the target date for a monthly task
   DateTime getMonthlyTaskDate(int dayOfMonth, bool adjustForHolidays,
-      {bool isLunar = false}) {
+      {bool isLunar = false, bool adjustToNext = true}) {
     final now = DateTime.now();
     DateTime targetDate;
 
@@ -129,7 +129,7 @@ class LunarService {
     }
 
     if (adjustForHolidays) {
-      targetDate = this.adjustForHolidays(targetDate);
+      targetDate = this.adjustForHolidays(targetDate, moveToPrevious: !adjustToNext);
     }
 
     return targetDate;
