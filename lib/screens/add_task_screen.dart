@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import '../models/task.dart';
 import '../providers/task_provider.dart';
 
@@ -282,27 +283,63 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
             ),
             const SizedBox(height: 8),
             Row(
-              children: taskColorPalette.map((color) {
-                final isSelected = _selectedColor.toARGB32() == color.toARGB32();
-                return GestureDetector(
-                  onTap: () => setState(() => _selectedColor = color),
+              children: [
+                // 4가지 기본 색상
+                ...taskColorPalette.map((color) {
+                  final isSelected = _selectedColor.toARGB32() == color.toARGB32();
+                  return GestureDetector(
+                    onTap: () => setState(() => _selectedColor = color),
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      margin: const EdgeInsets.only(right: 8),
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                        border: isSelected
+                            ? Border.all(color: Colors.black, width: 3)
+                            : null,
+                      ),
+                      child: isSelected
+                          ? const Icon(Icons.check, color: Colors.white, size: 20)
+                          : null,
+                    ),
+                  );
+                }),
+                // 커스텀 색상 선택 버튼
+                GestureDetector(
+                  onTap: _showColorPicker,
                   child: Container(
                     width: 36,
                     height: 36,
-                    margin: const EdgeInsets.only(right: 8),
                     decoration: BoxDecoration(
-                      color: color,
                       shape: BoxShape.circle,
-                      border: isSelected
-                          ? Border.all(color: Colors.black, width: 3)
-                          : null,
+                      border: Border.all(color: Colors.grey[400]!, width: 2),
+                      gradient: const SweepGradient(
+                        colors: [
+                          Colors.red,
+                          Colors.orange,
+                          Colors.yellow,
+                          Colors.green,
+                          Colors.blue,
+                          Colors.purple,
+                          Colors.red,
+                        ],
+                      ),
                     ),
-                    child: isSelected
-                        ? const Icon(Icons.check, color: Colors.white, size: 20)
-                        : null,
+                    child: !_isPresetColor()
+                        ? Container(
+                            decoration: BoxDecoration(
+                              color: _selectedColor,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.black, width: 3),
+                            ),
+                            child: const Icon(Icons.check, color: Colors.white, size: 20),
+                          )
+                        : const Icon(Icons.colorize, color: Colors.white, size: 18),
                   ),
-                );
-              }).toList(),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
             const Text(
@@ -323,23 +360,28 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
             ),
             const SizedBox(height: 24),
             const Text(
-              '알림 간격',
+              '반복 알림',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '완료하지 않으면 설정한 간격마다 다시 알림',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
             ),
             const SizedBox(height: 8),
             SegmentedButton<ReminderInterval>(
               segments: const [
                 ButtonSegment(
                   value: ReminderInterval.minutes10,
-                  label: Text('10분'),
+                  label: Text('10분마다'),
                 ),
                 ButtonSegment(
                   value: ReminderInterval.minutes30,
-                  label: Text('30분'),
+                  label: Text('30분마다'),
                 ),
                 ButtonSegment(
                   value: ReminderInterval.hour1,
-                  label: Text('1시간'),
+                  label: Text('1시간마다'),
                 ),
               ],
               selected: {_reminderInterval},
@@ -427,6 +469,41 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
         _scheduledMinute = picked.minute;
       });
     }
+  }
+
+  bool _isPresetColor() {
+    return taskColorPalette.any((c) => c.toARGB32() == _selectedColor.toARGB32());
+  }
+
+  void _showColorPicker() {
+    Color pickerColor = _selectedColor;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('색상 선택'),
+        content: SingleChildScrollView(
+          child: ColorPicker(
+            pickerColor: pickerColor,
+            onColorChanged: (color) => pickerColor = color,
+            enableAlpha: false,
+            labelTypes: const [],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () {
+              setState(() => _selectedColor = pickerColor);
+              Navigator.pop(context);
+            },
+            child: const Text('선택'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _saveTask() async {

@@ -36,6 +36,9 @@ dependencies:
   # URL launcher
   url_launcher: ^6.3.0
 
+  # Color picker
+  flutter_colorpicker: ^1.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -1,15 +1,11 @@
 import 'package:flutter/material.dart';
 
-// 할 일 색상 팔레트
+// 할 일 색상 팔레트 (4가지 기본 색상)
 const List<Color> taskColorPalette = [
   Color(0xFF2196F3), // 파랑
   Color(0xFFF44336), // 빨강
   Color(0xFF4CAF50), // 초록
   Color(0xFFFF9800), // 주황
-  Color(0xFF9C27B0), // 보라
-  Color(0xFF009688), // 청록
-  Color(0xFFE91E63), // 분홍
-  Color(0xFF795548), // 갈색
 ];
 
 enum TaskFrequency {

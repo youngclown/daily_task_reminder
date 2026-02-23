@@ -6,6 +6,30 @@ import 'dart:typed_data';
 import 'dart:io' show Platform;
 import '../models/task.dart';
 
+/// 알림 권한 상태
+class NotificationPermissionStatus {
+  final bool notificationGranted;
+  final bool exactAlarmGranted;
+  final bool batteryOptimizationIgnored;
+
+  NotificationPermissionStatus({
+    required this.notificationGranted,
+    required this.exactAlarmGranted,
+    required this.batteryOptimizationIgnored,
+  });
+
+  bool get allGranted =>
+      notificationGranted && exactAlarmGranted && batteryOptimizationIgnored;
+
+  List<String> get missingPermissions {
+    final missing = <String>[];
+    if (!notificationGranted) missing.add('알림 권한');
+    if (!exactAlarmGranted) missing.add('정확한 알람 권한');
+    if (!batteryOptimizationIgnored) missing.add('배터리 최적화 제외');
+    return missing;
+  }
+}
+
 class NotificationService {
   static final NotificationService instance = NotificationService._init();
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
@@ -57,38 +81,136 @@ class NotificationService {
     }
   }
 
+  /// 현재 알림 권한 상태 확인
+  Future<NotificationPermissionStatus> checkPermissionStatus() async {
+    if (!isSupported) {
+      return NotificationPermissionStatus(
+        notificationGranted: false,
+        exactAlarmGranted: false,
+        batteryOptimizationIgnored: false,
+      );
+    }
+
+    bool notificationGranted = false;
+    bool exactAlarmGranted = false;
+    bool batteryOptimizationIgnored = false;
+
+    if (Platform.isAndroid) {
+      final androidImpl = flutterLocalNotificationsPlugin
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+
+      // 알림 권한 확인
+      notificationGranted = await androidImpl?.areNotificationsEnabled() ?? false;
+
+      // 정확한 알람 권한 확인
+      exactAlarmGranted = await androidImpl?.canScheduleExactNotifications() ?? false;
+
+      // 배터리 최적화 제외 확인
+      batteryOptimizationIgnored = await Permission.ignoreBatteryOptimizations.isGranted;
+
+      print('[NOTIFICATION] Permission Status:');
+      print('[NOTIFICATION]   - Notification: $notificationGranted');
+      print('[NOTIFICATION]   - Exact Alarm: $exactAlarmGranted');
+      print('[NOTIFICATION]   - Battery Optimization Ignored: $batteryOptimizationIgnored');
+    } else if (Platform.isIOS) {
+      // iOS는 일반적으로 권한 요청 시 처리됨
+      notificationGranted = true;
+      exactAlarmGranted = true;
+      batteryOptimizationIgnored = true;
+    }
+
+    return NotificationPermissionStatus(
+      notificationGranted: notificationGranted,
+      exactAlarmGranted: exactAlarmGranted,
+      batteryOptimizationIgnored: batteryOptimizationIgnored,
+    );
+  }
+
+  /// 알림 권한 요청 (결과 반환)
+  Future<bool> requestNotificationPermission() async {
+    if (!isSupported || !Platform.isAndroid) return true;
+
+    final androidImpl = flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+
+    final granted = await androidImpl?.requestNotificationsPermission() ?? false;
+    print('[NOTIFICATION] Notification permission granted: $granted');
+    return granted;
+  }
+
+  /// 정확한 알람 권한 요청 (설정 화면으로 이동)
+  Future<bool> requestExactAlarmPermission() async {
+    if (!isSupported || !Platform.isAndroid) return true;
+
+    final androidImpl = flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+
+    // 이미 권한이 있는지 확인
+    final alreadyGranted = await androidImpl?.canScheduleExactNotifications() ?? false;
+    if (alreadyGranted) {
+      print('[NOTIFICATION] Exact alarm permission already granted');
+      return true;
+    }
+
+    // 설정 화면으로 이동
+    await androidImpl?.requestExactAlarmsPermission();
+
+    // 설정에서 돌아온 후 다시 확인
+    final granted = await androidImpl?.canScheduleExactNotifications() ?? false;
+    print('[NOTIFICATION] Exact alarm permission after request: $granted');
+    return granted;
+  }
+
+  /// 배터리 최적화 제외 요청
+  Future<bool> requestBatteryOptimization() async {
+    if (!isSupported || !Platform.isAndroid) return true;
+
+    final status = await Permission.ignoreBatteryOptimizations.status;
+    if (status.isGranted) {
+      print('[NOTIFICATION] Battery optimization already ignored');
+      return true;
+    }
+
+    final result = await Permission.ignoreBatteryOptimizations.request();
+    print('[NOTIFICATION] Battery optimization ignore granted: ${result.isGranted}');
+    return result.isGranted;
+  }
+
+  /// 모든 권한 요청 (기존 메서드 - 호환성 유지)
   Future<void> requestPermissions() async {
     if (!isSupported) {
       print('Notifications not supported on ${Platform.operatingSystem}, skipping permission request');
       return;
     }
 
-    final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
-        flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
-
-    await androidImplementation?.requestNotificationsPermission();
-
-    // Android 12+에서 정확한 알람 권한 요청 (설정 화면으로 이동)
-    await androidImplementation?.requestExactAlarmsPermission();
-
-    final IOSFlutterLocalNotificationsPlugin? iosImplementation =
-        flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
-            IOSFlutterLocalNotificationsPlugin>();
-
-    await iosImplementation?.requestPermissions(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-
-    // 삼성 등 배터리 최적화가 알람을 죽이는 것을 방지
     if (Platform.isAndroid) {
-      final batteryStatus = await Permission.ignoreBatteryOptimizations.status;
-      if (!batteryStatus.isGranted) {
-        await Permission.ignoreBatteryOptimizations.request();
-      }
+      await requestNotificationPermission();
+      await requestExactAlarmPermission();
+      await requestBatteryOptimization();
+    } else if (Platform.isIOS) {
+      final iosImpl = flutterLocalNotificationsPlugin
+          .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+
+      await iosImpl?.requestPermissions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
     }
+  }
+
+  /// 정확한 알람 설정 화면 열기
+  Future<void> openExactAlarmSettings() async {
+    if (!Platform.isAndroid) return;
+
+    final androidImpl = flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    await androidImpl?.requestExactAlarmsPermission();
+  }
+
+  /// 앱 알림 설정 화면 열기
+  Future<void> openNotificationSettings() async {
+    await Permission.notification.request();
   }
 
   Future<void> scheduleTaskReminder(Task task) async {
@@ -118,8 +240,8 @@ class NotificationService {
       // 3. Schedule main notification
       await _scheduleMainNotification(task, nextScheduledTime);
 
-      // 4. Schedule reminder notification (X minutes before)
-      await _scheduleReminderNotification(task, nextScheduledTime);
+      // 4. Schedule repeating reminders (every X minutes after main notification)
+      await _scheduleRepeatingReminders(task, nextScheduledTime);
       print('[NOTIFICATION] ========================================================');
     } catch (e) {
       print('[NOTIFICATION] Failed to schedule task reminder: $e');
@@ -269,36 +391,16 @@ class NotificationService {
     print('[NOTIFICATION] Main notification scheduled (mode: $scheduleMode)');
   }
 
-  Future<void> _scheduleReminderNotification(Task task, tz.TZDateTime mainScheduledTime) async {
+  /// 반복 알림 스케줄링 (N분마다 최대 6회 반복)
+  Future<void> _scheduleRepeatingReminders(Task task, tz.TZDateTime mainScheduledTime) async {
     final int taskId = int.parse(task.id ?? '0');
-    final int reminderIntervalMinutes = task.getReminderIntervalMinutes();
-
-    // 사전 알림 시간 = 메인 알림 시간 - N분
-    tz.TZDateTime reminderTime = mainScheduledTime.subtract(Duration(minutes: reminderIntervalMinutes));
-
-    final now = tz.TZDateTime.now(tz.local);
-
-    // 사전 알림 시간이 과거면 다음 발생 시점으로 조정
-    if (reminderTime.isBefore(now)) {
-      if (task.frequency == TaskFrequency.daily) {
-        reminderTime = reminderTime.add(const Duration(days: 1));
-      } else if (task.frequency == TaskFrequency.weekly) {
-        reminderTime = reminderTime.add(const Duration(days: 7));
-      } else if (task.frequency == TaskFrequency.monthly) {
-        final nextMonth = reminderTime.month == 12 ? 1 : reminderTime.month + 1;
-        final nextYear = reminderTime.month == 12 ? reminderTime.year + 1 : reminderTime.year;
-        reminderTime = tz.TZDateTime(tz.local, nextYear, nextMonth, reminderTime.day, reminderTime.hour, reminderTime.minute);
-      } else {
-        // once: 과거면 사전 알림 스킵
-        print('[NOTIFICATION] Reminder time is in the past for once task, skipping advance reminder');
-        return;
-      }
-    }
+    final int intervalMinutes = task.getReminderIntervalMinutes();
+    const int maxRepeats = 6; // 최대 반복 횟수
 
     final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      'task_reminder_advance_channel_v3',
-      '할 일 사전 알림',
-      channelDescription: '할 일 ${reminderIntervalMinutes}분 전 알림',
+      'task_reminder_repeat_channel',
+      '할 일 반복 알림',
+      channelDescription: '할 일 완료 전까지 ${intervalMinutes}분마다 반복 알림',
       importance: Importance.max,
       priority: Priority.max,
       playSound: true,
@@ -315,29 +417,27 @@ class NotificationService {
       iOS: iosDetails,
     );
 
-    DateTimeComponents? repeatComponents;
-    if (task.frequency == TaskFrequency.daily) {
-      repeatComponents = DateTimeComponents.time;
-    } else if (task.frequency == TaskFrequency.monthly) {
-      repeatComponents = DateTimeComponents.dayOfMonthAndTime;
-    } else if (task.frequency == TaskFrequency.weekly) {
-      repeatComponents = DateTimeComponents.dayOfWeekAndTime;
-    }
-
     final scheduleMode = await _getScheduleMode();
 
-    await flutterLocalNotificationsPlugin.zonedSchedule(
-      taskId * 1000,
-      '할 일 사전 알림',
-      '${task.title} (${reminderIntervalMinutes}분 후)',
-      reminderTime,
-      platformDetails,
-      androidScheduleMode: scheduleMode,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
-      matchDateTimeComponents: repeatComponents,
-    );
-    print('[NOTIFICATION] Advance reminder scheduled at: $reminderTime');
+    // N분 간격으로 최대 maxRepeats회 반복 알림 스케줄링
+    for (int i = 1; i <= maxRepeats; i++) {
+      final reminderTime = mainScheduledTime.add(Duration(minutes: intervalMinutes * i));
+
+      // 반복 알림 ID: taskId * 1000 + i (1~6)
+      final notificationId = taskId * 1000 + i;
+
+      await flutterLocalNotificationsPlugin.zonedSchedule(
+        notificationId,
+        '할 일 알림',
+        '${task.title} (${intervalMinutes * i}분 경과)',
+        reminderTime,
+        platformDetails,
+        androidScheduleMode: scheduleMode,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+      );
+      print('[NOTIFICATION] Repeat reminder #$i scheduled at: $reminderTime');
+    }
   }
 
   Future<void> cancelTaskReminder(String taskId) async {
@@ -348,8 +448,13 @@ class NotificationService {
 
     try {
       final int id = int.parse(taskId);
+      // 메인 알림 취소
       await flutterLocalNotificationsPlugin.cancel(id);
-      await flutterLocalNotificationsPlugin.cancel(id * 1000);
+      // 반복 알림 취소 (최대 6개)
+      for (int i = 1; i <= 6; i++) {
+        await flutterLocalNotificationsPlugin.cancel(id * 1000 + i);
+      }
+      print('[NOTIFICATION] Cancelled all reminders for task $taskId');
     } catch (e) {
       print('Failed to cancel task reminder: $e');
     }
